@@ -7,7 +7,10 @@
 #include <array>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <algorithm>
+#include <numeric>
+#include <functional>
 
 using std::string;
 using std::vector;
@@ -15,6 +18,8 @@ using std::array;
 
 enum class Rank{ None, HighCard, OnePair, TwoPairs, Threes, Straight, Flush, FullHouse, Fours, StraightFlush, RoyalFlush };
 enum class Suit{ None, Clubs, Diamonds, Hearts, Spades };
+
+std::vector<string> rankText = { "None", "HighCard", "OnePair", "TwoPairs", "Threes", "Straight", "Flush", "FullHouse", "Fours", "StraightFlush", "RoyalFlush" };
 
 struct Card
 {
@@ -95,11 +100,13 @@ struct Hand
 			cards[1].suit() == cards[2].suit() && 
 			cards[2].suit() == cards[3].suit() && 
 			cards[3].suit() == cards[4].suit();
+
 		bool straight = 
 			cards[0].value() == cards[1].value() - 1 &&
 			cards[1].value() == cards[2].value() - 1 &&
 			cards[2].value() == cards[3].value() - 1 &&
 			cards[3].value() == cards[4].value() - 1;
+
 		bool royal = straight && 
 			cards[0].value() == 10;
 
@@ -111,17 +118,57 @@ struct Hand
 		else if (straight && flush)
 		{
 			rank = Rank::StraightFlush;
+			return;
 		}
 
-		// for every permutation keep track of highest rank:
-		// - test first 4 for equality: fours
-		// - test first 3 and last 2 for equality: full house
-		// - test first 2 and next 2 for equality: two pair
-		// - test first 2 for equality: one pair
+		Rank best = flush ? Rank::Flush : (straight ? Rank::Straight : Rank::HighCard);
 
+		// for every permutation keep track of highest rank
+
+		vector<size_t> perms(cards.size());
+		std::iota(perms.begin(), perms.end(), 0);
+		do
+		{
+			bool threes =
+				cards[perms[0]].value() == cards[perms[1]].value() &&
+				cards[perms[1]].value() == cards[perms[2]].value();
+
+			bool fours = threes &&
+				cards[perms[2]].value() == cards[perms[3]].value();
+
+			bool fullhouse = threes &&
+				cards[perms[3]].value() == cards[perms[4]].value();
+
+			bool onepair =
+				cards[perms[0]].value() == cards[perms[1]].value();
+
+			bool twopair = onepair &&
+				cards[perms[2]].value() == cards[perms[3]].value();
+
+			if (fours && Rank::Fours > best)
+				best = Rank::Fours;
+			else if (fullhouse && Rank::FullHouse > best)
+				best = Rank::FullHouse;
+			else if (threes && Rank::Threes > best)
+				best = Rank::Threes;
+			else if (twopair && Rank::TwoPairs > best)
+				best = Rank::TwoPairs;
+			else if (onepair && Rank::OnePair > best)
+				best = Rank::OnePair;
+
+		} while (std::next_permutation(perms.begin(), perms.end()));
+
+		rank = best;
 	}
 
 };
+
+bool operator> (const Hand &lhs, const Hand &rhs)
+{
+	if (lhs.rank > rhs.rank)
+		return true;
+	return false;
+}
 
 std::istream& operator>>(std::istream &in, Card &card)
 {
@@ -132,7 +179,10 @@ std::istream& operator>>(std::istream &in, Card &card)
 std::istream& operator>>(std::istream &in, Hand &hand)
 {
 	if (in >> hand.cards[0] >> hand.cards[1] >> hand.cards[2] >> hand.cards[3] >> hand.cards[4])
+	{
 		hand.orderByValue();
+		hand.evaluate();
+	}
 	return in;
 }
 
@@ -144,22 +194,28 @@ std::ostream& operator<<(std::ostream &out, const Card &card)
 
 std::ostream& operator<<(std::ostream &out, const Hand &hand)
 {
-	out << hand.cards[0] << " " << hand.cards[1] << " " << hand.cards[2] << " " << hand.cards[3] << " " << hand.cards[4];
+	out << hand.cards[0] << " " << hand.cards[1] << " " << hand.cards[2] << " " << hand.cards[3] << " " << hand.cards[4] << " " 
+		<< std::setw(15) << std::left << rankText.at(static_cast<size_t>(hand.rank));
 	return out;
 }
+
 int main(int argc, char* argv[])
 {
 	if (argc > 1)
 	{
-		string filename(argv[1]);
-		std::ifstream fin(filename.c_str());
+		std::ifstream fin(argv[1]);
 
 		Hand hand1, hand2;
 		while (fin >> hand1 >> hand2)
 		{
-			hand1.evaluate();
-			hand2.evaluate();
-			std::cout << hand1 << "   " << hand2 << "\n";
+			std::cout << hand1 << " | " << hand2 << "\n";
+
+			if (hand1 > hand2)
+				std::cout << "left\n";
+			else if (hand2 > hand1)
+				std::cout << "right\n";
+			else
+				std::cout << "none\n";
 		}
 	}
 
