@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <numeric>
 #include <functional>
+#include <cassert>
 
 using std::string;
 using std::vector;
@@ -82,6 +83,7 @@ struct Hand
 {
 	array<Card, 5> cards;
 	Rank rank = Rank::None;
+	vector<int> rankValues;
 
 	void orderByValue()
 	{
@@ -95,19 +97,19 @@ struct Hand
 
 	void evaluate()
 	{
-		bool flush = 
-			cards[0].suit() == cards[1].suit() && 
-			cards[1].suit() == cards[2].suit() && 
-			cards[2].suit() == cards[3].suit() && 
+		bool flush =
+			cards[0].suit() == cards[1].suit() &&
+			cards[1].suit() == cards[2].suit() &&
+			cards[2].suit() == cards[3].suit() &&
 			cards[3].suit() == cards[4].suit();
 
-		bool straight = 
+		bool straight =
 			cards[0].value() == cards[1].value() - 1 &&
 			cards[1].value() == cards[2].value() - 1 &&
 			cards[2].value() == cards[3].value() - 1 &&
 			cards[3].value() == cards[4].value() - 1;
 
-		bool royal = straight && 
+		bool royal = straight &&
 			cards[0].value() == 10;
 
 		if (royal && flush)
@@ -122,6 +124,7 @@ struct Hand
 		}
 
 		Rank best = flush ? Rank::Flush : (straight ? Rank::Straight : Rank::HighCard);
+		storeRankValues(cards[0].value(), cards[1].value(), cards[2].value(), cards[3].value(), cards[4].value());
 
 		// for every permutation keep track of highest rank
 
@@ -129,36 +132,68 @@ struct Hand
 		std::iota(perms.begin(), perms.end(), 0);
 		do
 		{
+			auto value0 = cards[perms[0]].value();
+			auto value1 = cards[perms[1]].value();
+			auto value2 = cards[perms[2]].value();
+			auto value3 = cards[perms[3]].value();
+			auto value4 = cards[perms[4]].value();
+
 			bool threes =
-				cards[perms[0]].value() == cards[perms[1]].value() &&
-				cards[perms[1]].value() == cards[perms[2]].value();
+				value0 == value1 &&
+				value1 == value2;
 
 			bool fours = threes &&
-				cards[perms[2]].value() == cards[perms[3]].value();
+				value2 == value3;
 
 			bool fullhouse = threes &&
-				cards[perms[3]].value() == cards[perms[4]].value();
+				value3 == value4;
 
 			bool onepair =
-				cards[perms[0]].value() == cards[perms[1]].value();
+				value0 == value1;
 
 			bool twopair = onepair &&
-				cards[perms[2]].value() == cards[perms[3]].value();
+				value2 == value3;
 
 			if (fours && Rank::Fours > best)
+			{
 				best = Rank::Fours;
+				storeRankValues(value0);
+			}
 			else if (fullhouse && Rank::FullHouse > best)
+			{
 				best = Rank::FullHouse;
+				storeRankValues(value0, value3);
+			}
 			else if (threes && Rank::Threes > best)
+			{
 				best = Rank::Threes;
+				storeRankValues(value0);
+			}
 			else if (twopair && Rank::TwoPairs > best)
+			{
 				best = Rank::TwoPairs;
+				storeRankValues(value0, value2);
+			}
 			else if (onepair && Rank::OnePair > best)
+			{
 				best = Rank::OnePair;
+				storeRankValues(value0);
+			}
 
 		} while (std::next_permutation(perms.begin(), perms.end()));
 
+		// set the final rank of the hand to be the best we've encounterd thus far
 		rank = best;
+
+		// sort the rank values in decreasing order
+		std::sort(rankValues.begin(), rankValues.end(), [](int a, int b){ return a > b; });
+	}
+
+	template <typename... T>
+	void storeRankValues(T... args)
+	{
+		rankValues.clear();
+		rankValues = { args... };
 	}
 
 };
@@ -166,7 +201,17 @@ struct Hand
 bool operator> (const Hand &lhs, const Hand &rhs)
 {
 	if (lhs.rank > rhs.rank)
+	{
 		return true;
+	}
+	else if (lhs.rank == rhs.rank)
+	{
+		assert(lhs.rankValues.size() == lhs.rankValues.size());
+		std::vector<int>::const_iterator itr1, itr2;
+		std::tie(itr1, itr2) = std::mismatch(lhs.rankValues.begin(), lhs.rankValues.end(), rhs.rankValues.begin());
+		if (itr1 != lhs.rankValues.end() && itr2 != rhs.rankValues.end())
+			return *itr1 > *itr2;
+	}
 	return false;
 }
 
