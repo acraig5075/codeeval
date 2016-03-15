@@ -1,6 +1,3 @@
-// 86-poker.cpp : Defines the entry point for the console application.
-//
-
 #include <string>
 #include <vector>
 #include <array>
@@ -14,16 +11,16 @@
 
 using std::string;
 using std::vector;
-using std::array;
 
 enum class Rank { None, HighCard, OnePair, TwoPairs, Threes, Straight, Flush, FullHouse, Fours, StraightFlush, RoyalFlush };
+
 enum class Suit { None, Clubs, Diamonds, Hearts, Spades };
 
 std::vector<string> rankText = { "None", "HighCard", "OnePair", "TwoPairs", "Threes", "Straight", "Flush", "FullHouse", "Fours", "StraightFlush", "RoyalFlush" };
 
 struct Card
 {
-	array<char, 2> code;
+	std::array<char, 2> code;
 
 	int value() const
 	{
@@ -80,24 +77,17 @@ struct Card
 
 struct Hand
 {
-	array<Card, 5> cards;
+	std::array<Card, 5> cards;
 	Rank rank = Rank::None;
-	vector<int> scoringValues;
-	vector<int> remainingValues;
+	vector<int> scoringValues; // the indexes into `cards` that contribute to the rank in decreasing value
+	vector<int> remainingValues; // the indexes in decreasing value that are remaining, i.e. the kickers. 
 
 	void orderByValue()
 	{
-		std::sort(cards.begin(), cards.end(), [ = ](const Card & a, const Card & b)
-			{
-			return a.value() < b.value();
-			});
+		std::sort(cards.begin(), cards.end(), std::less<Card>());
 	}
 
-	int highest() const
-	{
-		return cards[4].value();
-	}
-
+	// Does the hard work of determing the rank of a hand, the scoring cards of the rank, and the cards not contributing to the rank
 	void evaluate()
 	{
 		bool flush =
@@ -145,17 +135,20 @@ struct Hand
 				value0 == value1 &&
 				value1 == value2;
 
-			bool fours = threes &&
-									 value2 == value3;
+			bool fours = 
+				threes && 
+				value2 == value3;
 
-			bool fullhouse = threes &&
-											 value3 == value4;
+			bool fullhouse = 
+				threes &&
+				value3 == value4;
 
 			bool onepair =
 				value0 == value1;
 
-			bool twopair = onepair &&
-										 value2 == value3;
+			bool twopair = 
+				onepair &&
+				value2 == value3;
 
 			if (fours && Rank::Fours > best)
 				{
@@ -193,29 +186,48 @@ struct Hand
 		// set the final rank of the hand to be the best we've encounterd thus far
 		rank = best;
 
-		// sort the rank values in decreasing order
-		std::sort(scoringValues.begin(), scoringValues.end(), std::greater<int>());
+		// sort the rank values in decreasing value, excepting FullHouse which needs the Threes compared before the Pair
+		if (rank != Rank::FullHouse)
+			std::sort(scoringValues.begin(), scoringValues.end(), std::greater<int>());
+
+		// sort the kickers in decreasing value
 		std::sort(remainingValues.begin(), remainingValues.end(), std::greater<int>());
 	}
 };
 
-template <typename T>
-bool innerGreaterThan(const std::vector<T> &lhs, const std::vector<T> &rhs, bool &ok)
+// A generic function to compare the first differing items of one range with the item of the same index of another range.
+
+template <typename T, typename P>
+bool innerCompare(const std::vector<T> &lhs, const std::vector<T> &rhs, P predicate, bool &ok)
 {
 	assert(lhs.size() == rhs.size());
-	std::vector<T>::const_iterator itr1, itr2;
-	std::tie(itr1, itr2) = std::mismatch(lhs.begin(), lhs.end(), rhs.begin());
 
-	if (itr1 != lhs.end() && itr2 != rhs.end())
+	if (lhs.size() == rhs.size())
+	{
+		typename std::vector<T>::const_iterator itr1, itr2;
+		std::tie(itr1, itr2) = std::mismatch(lhs.begin(), lhs.end(), rhs.begin());
+
+		if (itr1 != lhs.end() && itr2 != rhs.end())
 		{
-		ok = true;
-		return *itr1 > *itr2;
+			ok = true;
+			return predicate(*itr1, *itr2);
 		}
-	else
+		else
 		{
-		ok = false;
-		return false;
+			ok = false;
+			return false;
 		}
+	}
+
+	ok = false;
+	return false;
+}
+
+// Comparison operators
+
+bool operator< (const Card &lhs, const Card &rhs)
+{
+	return lhs.value() < rhs.value();
 }
 
 bool operator> (const Hand &lhs, const Hand &rhs)
@@ -227,15 +239,17 @@ bool operator> (const Hand &lhs, const Hand &rhs)
 	else if (lhs.rank == rhs.rank)
 		{
 		bool ok;
-		bool gt = innerGreaterThan(lhs.scoringValues, rhs.scoringValues, ok);
+		bool gt = innerCompare(lhs.scoringValues, rhs.scoringValues, std::greater<int>(), ok);
 
 		if (ok)
 			return gt;
 		else
-			return innerGreaterThan(lhs.remainingValues, rhs.remainingValues, ok);
+			return innerCompare(lhs.remainingValues, rhs.remainingValues, std::greater<int>(), ok);
 		}
 	return false;
 }
+
+// Input stream operators
 
 std::istream &operator>>(std::istream &in, Card &card)
 {
@@ -245,6 +259,10 @@ std::istream &operator>>(std::istream &in, Card &card)
 
 std::istream &operator>>(std::istream &in, Hand &hand)
 {
+	hand.rank = Rank::None;
+	hand.scoringValues.clear();
+	hand.remainingValues.clear();
+
 	if (in >> hand.cards[0] >> hand.cards[1] >> hand.cards[2] >> hand.cards[3] >> hand.cards[4])
 		{
 		hand.orderByValue();
@@ -252,6 +270,8 @@ std::istream &operator>>(std::istream &in, Hand &hand)
 		}
 	return in;
 }
+
+// Output stream operators
 
 std::ostream &operator<<(std::ostream &out, const Card &card)
 {
@@ -261,10 +281,16 @@ std::ostream &operator<<(std::ostream &out, const Card &card)
 
 std::ostream &operator<<(std::ostream &out, const Hand &hand)
 {
-	out << hand.cards[0] << " " << hand.cards[1] << " " << hand.cards[2] << " " << hand.cards[3] << " " << hand.cards[4] << " "
-			<< std::setw(15) << std::left << rankText.at(static_cast<size_t>(hand.rank));
+	out << hand.cards[0] << " "
+		<< hand.cards[1] << " "
+		<< hand.cards[2] << " "
+		<< hand.cards[3] << " "
+		<< hand.cards[4] << " "
+		<< std::setw(15) << std::left << rankText.at(static_cast<size_t>(hand.rank));
 	return out;
 }
+
+// All that `main` now needs to do is iteratively construct two hands from the file stream and compare them with operator>.
 
 int main(int argc, char *argv[])
 {
@@ -275,7 +301,7 @@ int main(int argc, char *argv[])
 		Hand hand1, hand2;
 		while (fin >> hand1 >> hand2)
 			{
-			std::cout << hand1 << " | " << hand2 << "\n";
+			//std::cout << hand1 << " | " << hand2 << "\n";
 
 			if (hand1 > hand2)
 				std::cout << "left\n";
@@ -288,4 +314,3 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-
