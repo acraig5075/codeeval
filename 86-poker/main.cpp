@@ -84,7 +84,7 @@ struct Hand
 
 	void orderByValue()
 	{
-		std::sort(cards.begin(), cards.end(), std::less<Card>());
+		std::sort(cards.begin(), cards.end(), std::greater<Card>());
 	}
 
 	// Does the hard work of determing the rank of a hand, the scoring cards of the rank, and the cards not contributing to the rank
@@ -97,13 +97,13 @@ struct Hand
 			cards[3].suit() == cards[4].suit();
 
 		bool straight =
-			cards[0].value() == cards[1].value() - 1 &&
-			cards[1].value() == cards[2].value() - 1 &&
-			cards[2].value() == cards[3].value() - 1 &&
-			cards[3].value() == cards[4].value() - 1;
+			cards[0].value() == cards[1].value() + 1 &&
+			cards[1].value() == cards[2].value() + 1 &&
+			cards[2].value() == cards[3].value() + 1 &&
+			cards[3].value() == cards[4].value() + 1;
 
 		bool royal = straight &&
-								 cards[0].value() == 10;
+								 cards[0].value() == 14;
 
 		if (royal && flush)
 			{
@@ -197,17 +197,17 @@ struct Hand
 
 // A generic function to compare the first differing items of one range with the item of the same index of another range.
 
-template <typename T, typename P>
-bool innerCompare(const std::vector<T> &lhs, const std::vector<T> &rhs, P predicate, bool &ok)
+template <typename Itr, typename P>
+bool innerCompare(const Itr &first1, const Itr &last1, const Itr &first2, const Itr &last2, P predicate, bool &ok)
 {
-	assert(lhs.size() == rhs.size());
+	assert(std::distance(first1, last1) == std::distance(first2, last2));
 
-	if (lhs.size() == rhs.size())
+	if (std::distance(first1, last1) == std::distance(first2, last2))
 	{
-		typename std::vector<T>::const_iterator itr1, itr2;
-		std::tie(itr1, itr2) = std::mismatch(lhs.begin(), lhs.end(), rhs.begin());
+		Itr itr1, itr2;
+		std::tie(itr1, itr2) = std::mismatch(first1, last1, first2);
 
-		if (itr1 != lhs.end() && itr2 != rhs.end())
+		if (itr1 != last1 && itr2 != last2)
 		{
 			ok = true;
 			return predicate(*itr1, *itr2);
@@ -230,6 +230,16 @@ bool operator< (const Card &lhs, const Card &rhs)
 	return lhs.value() < rhs.value();
 }
 
+bool operator> (const Card &lhs, const Card &rhs)
+{
+	return lhs.value() > rhs.value();
+}
+
+bool operator== (const Card &lhs, const Card &rhs)
+{
+	return lhs.value() == rhs.value();
+}
+
 bool operator> (const Hand &lhs, const Hand &rhs)
 {
 	if (lhs.rank > rhs.rank)
@@ -239,12 +249,12 @@ bool operator> (const Hand &lhs, const Hand &rhs)
 	else if (lhs.rank == rhs.rank)
 		{
 		bool ok;
-		bool gt = innerCompare(lhs.scoringValues, rhs.scoringValues, std::greater<int>(), ok);
+		bool gt = innerCompare(lhs.scoringValues.cbegin(), lhs.scoringValues.cend(), rhs.scoringValues.cbegin(), rhs.scoringValues.cend(), std::greater<int>(), ok);
 
 		if (ok)
 			return gt;
 		else
-			return innerCompare(lhs.remainingValues, rhs.remainingValues, std::greater<int>(), ok);
+			return innerCompare(lhs.cards.cbegin(), lhs.cards.cend(), rhs.cards.cbegin(), rhs.cards.cend(), std::greater<Card>(), ok);
 		}
 	return false;
 }
