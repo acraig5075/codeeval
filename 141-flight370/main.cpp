@@ -244,7 +244,7 @@ struct KmlReader
 		{
 			string openTag = string("<b>");
 			string closeTag = string("</b>");
-			auto start = line.find(openTag, 0);
+			auto start = line.find(openTag, confirm);
 			auto end = line.find(closeTag, start);
 
 			if (string::npos != start && string::npos != end)
@@ -279,16 +279,33 @@ struct HaversineFunctor
 	}
 };
 
+void print(const string &id, const vector<Placemark> &placemarks)
+{
+	auto it = std::find_if(placemarks.begin(), placemarks.end(), [&id](const Placemark &p)
+	{
+		return p.m_id == id;
+	});
+
+	if (it != placemarks.end())
+		std::cout << it->m_id << " " << it->m_confirmations << " " << it->m_test << "\n";
+}
+
 void testCase(const Test &test, vector<Placemark> &placemarks)
 {
+	// Compute the test distance for each placemark
 	HaversineFunctor hf(test);
 	std::for_each(placemarks.begin(), placemarks.end(), hf);
 
+	// Sort placemarks by increasing test distance
 	std::sort(placemarks.begin(), placemarks.end(), [](const Placemark &lhs, const Placemark &rhs)
 	{
 		return lhs.m_test < rhs.m_test;
 	});
 
+	//print("3536615", placemarks);
+	//print("6757595", placemarks);
+
+	// Search for the first placemark that doesn't satisfy the radius test
 	Placemark search;
 	search.m_test = test.m_radius;
 	auto itr = std::lower_bound(placemarks.begin(), placemarks.end(), search, [](const Placemark &lhs, const Placemark &rhs)
@@ -296,12 +313,16 @@ void testCase(const Test &test, vector<Placemark> &placemarks)
 		return lhs.m_test < rhs.m_test;
 	});
 
+	// Number of potential candidates to consider
+	size_t numCandidates = std::distance(placemarks.begin(), itr);
+
+	// Sort only these candidates by confirmations, then by timestamp, then by Id
 	std::sort(placemarks.begin(), itr, [](const Placemark &lhs, const Placemark &rhs)
 	{
 		if (lhs.m_confirmations == rhs.m_confirmations)
 		{
 			if (rhs.m_timeStamp.compare(lhs.m_timeStamp) == 0)
-				return lhs.m_id.compare(rhs.m_id) > 0;
+				return lhs.m_id.compare(rhs.m_id) < 0;
 			else
 				return lhs.m_timeStamp.compare(rhs.m_timeStamp) > 0;
 		}
@@ -311,23 +332,27 @@ void testCase(const Test &test, vector<Placemark> &placemarks)
 		}
 	});
 
-	if (!placemarks.empty())
+	if (numCandidates > 0)
 	{
+		auto endItr = placemarks.begin() + numCandidates;
+
+		// Search for end of placemarks with same number of confirmations
 		Placemark search2 = placemarks.at(0);
-		auto itr2 = std::lower_bound(placemarks.begin(), placemarks.end(), search, [](const Placemark &lhs, const Placemark &rhs)
+		auto itr2 = std::lower_bound(placemarks.begin(), endItr, search2, [](const Placemark &lhs, const Placemark &rhs)
 		{
-			return lhs.m_confirmations < rhs.m_confirmations;
+			return lhs.m_confirmations >= rhs.m_confirmations;
 		});
 
-		if (itr == placemarks.end())
+		if (itr2 != endItr)
 		{
-			std::cout << "First\n";
-		}
-		else
-		{
-			std::for_each(placemarks.begin(), itr, [](const Placemark &place)
+			bool first = true;
+			std::for_each(placemarks.begin(), itr2, [&](const Placemark &place)
 			{
-				std::cout << place.m_name << " ";
+				if (first)
+					std::cout << place.m_name;
+				else
+					std::cout << ", " << place.m_name;
+				first = false;
 			});
 			std::cout << "\n";
 		}
@@ -340,12 +365,6 @@ void testCase(const Test &test, vector<Placemark> &placemarks)
 
 int main(int argc, char* argv[])
 {
-	//std::cout << std::fixed << Utils::haversine(Utils::deg_rad(96.289565663600001), Utils::deg_rad(4.0044008079599998), Utils::deg_rad(96.199739494699998), Utils::deg_rad(4.00144844172)) << "\n";
-	//std::cout << std::fixed << Utils::haversine(Utils::deg_rad(96.289565663600001), Utils::deg_rad(4.0044008079599998), Utils::deg_rad(96.151760139900006), Utils::deg_rad(3.99155375228)) << "\n";
-	//std::cout << std::fixed << Utils::haversine(Utils::deg_rad(96.289565663600001), Utils::deg_rad(4.0044008079599998), Utils::deg_rad(96.143478430900004), Utils::deg_rad(4.01696913695)) << "\n";
-	//std::cout << std::fixed << Utils::haversine(Utils::deg_rad(96.289565663600001), Utils::deg_rad(4.0044008079599998), Utils::deg_rad(96.144545950099996), Utils::deg_rad(4.01509084972)) << "\n";
-	//std::cout << std::fixed << Utils::haversine(Utils::deg_rad(96.289565663600001), Utils::deg_rad(4.0044008079599998), Utils::deg_rad(96.147881831999996), Utils::deg_rad(4.01044351935)) << "\n";
-	
 	if (argc > 1)
 	{
 		vector<Test> tests;
