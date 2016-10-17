@@ -15,6 +15,7 @@ These challenges offer a nice opportunity to solve problems not of the sort I us
 | std::iota() | [48](48-discounts/main.cpp),
 | std::is_digit() | [108](108-terminal/main.cpp), 
 | std::copy_n() | [108](108-terminal/main.cpp), 
+| std::minmax_element() | [213](213-lakes/main.cpp), 
 
 ### Code snippets
 
@@ -28,3 +29,4 @@ These challenges offer a nice opportunity to solve problems not of the sort I us
 | Custom istream and ostream operators  | [86](86-poker/main.cpp), 
 | generic comparison of two ranges  | [86](86-poker/main.cpp), 
 | good separation of concerns  | [108](108-terminal/main.cpp), 
+| erase-remove idiom  | [213](213-lakes/main.cpp), 
