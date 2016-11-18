@@ -8,22 +8,55 @@
 #include <iomanip>
 #include <algorithm>
 #include <cctype>
+//#include <cfenv>
 
 using std::begin;
 using std::end;
 
-using CoordinateVector = std::vector <std::pair<int, int>> ;
+using Coordinate = std::pair<long long int, long long int>;
 
-float squared_distance(const std::pair<int, int> &a, const std::pair<int, int> &b)
+using CoordinateVector = std::vector <Coordinate> ;
+
+double squared_distance(const Coordinate &a, const Coordinate &b)
 {
-	int dx = a.first - b.first;
-	int dy = a.second - b.second;
-	return static_cast<float>((dx * dx) + (dy * dy));
+	//std::feclearexcept(FE_ALL_EXCEPT);
+
+	double dx = static_cast<double>(a.first - b.first);
+	double dy = static_cast<double>(a.second - b.second);
+	double dx2 = dx * dx;
+	double dy2 = dy * dy;
+	return dx2 + dy2;
+
+	//if (std::fetestexcept(FE_OVERFLOW))
+	//	return std::numeric_limits<double>::max();
+	//else
+	//	return dist2;
 }
 
-float process(const CoordinateVector &coordinates)
+void subtract_smallest(CoordinateVector &coordinates)
 {
-	float shortest_distance = std::numeric_limits<float>::max();
+	Coordinate smallest;
+	smallest.first = std::numeric_limits<long long int>::max();
+	smallest.second = std::numeric_limits<long long int>::max();
+
+	for (const Coordinate &c : coordinates)
+		{
+		if (c.first < smallest.first)
+			smallest.first = c.first;
+		if (c.second < smallest.second)
+			smallest.second = c.second;
+		}
+
+	for (Coordinate &c : coordinates)
+		{
+		c.first -= smallest.first;
+		c.second -= smallest.second;
+		}
+}
+
+double process(const CoordinateVector &coordinates)
+{
+	double shortest_distance = std::numeric_limits<double>::max();
 
 	CoordinateVector::const_iterator a = begin(coordinates);
 	CoordinateVector::const_iterator b = a;
@@ -33,7 +66,7 @@ float process(const CoordinateVector &coordinates)
 		{
 		while (b != end(coordinates))
 			{
-			float distance = squared_distance(*a, *b);
+			double distance = squared_distance(*a, *b);
 			if (distance < shortest_distance)
 				shortest_distance = distance;
 
@@ -50,16 +83,22 @@ float process(const CoordinateVector &coordinates)
 	return std::sqrt(shortest_distance);
 }
 
-std::pair<int, int> parse_coord(const std::string &text)
+Coordinate parse_coord(const std::string &text)
 {
-	std::pair<int, int> ret;
+	auto num_spaces = std::count_if(begin(text), end(text), [](char c)
+		{
+		return std::isblank(c);
+		});
+	assert(num_spaces == 1);
+
+	Coordinate ret;
 	size_t space = text.find(" ");
 
 	assert(space != text.npos);
-	if (space != text.npos)
+	if (num_spaces == 1 && space != text.npos)
 		{
-		ret.first = atoi(text.substr(0, space).c_str());
-		ret.second = atoi(text.substr(space).c_str());
+		ret.first = atoll(text.substr(0, space).c_str());
+		ret.second = atoll(text.substr(space).c_str());
 		}
 
 	return ret;
@@ -143,7 +182,9 @@ int main(int argc, char *argv[])
 
 			while (read_next_set(fin, coordinates))
 				{
-				float distance = process(coordinates);
+				subtract_smallest(coordinates);
+
+				double distance = process(coordinates);
 
 				if (distance < 10000.f)
 					std::cout << std::fixed << std::setprecision(4) << distance << "\n";
