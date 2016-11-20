@@ -14,11 +14,15 @@
 
 constexpr size_t room_width = 10;
 constexpr size_t room_height = 10;
+constexpr size_t max_light_distribution = 20;
 
 constexpr size_t top_wall = 0;
 constexpr size_t left_wall = 0;
 constexpr size_t right_wall = room_width - 1;
 constexpr size_t bottom_wall = room_height - 1;
+
+enum class Heading { NorthEast, NorthWest, SouthWest, SouthEast, None };
+enum class CellType { EmptySpace, Column, Prism, Wall, WallCorner };
 
 struct Room
 {
@@ -26,11 +30,13 @@ struct Room
 
 	const char& at(size_t x, size_t y) const
 	{
+		assert(x < room_width && y < room_height);
 		return cells.at(y).at(x);
 	}
 
 	char& at(size_t x, size_t y)
 	{
+		assert(x < room_width && y < room_height);
 		return cells.at(y).at(x);
 	}
 };
@@ -73,8 +79,6 @@ std::ostream &operator<< (std::ostream &out, const Room &room)
 	return out;
 }
 
-enum class Heading { NorthEast, NorthWest, SouthWest, SouthEast, None };
-
 struct Photon
 {
 	Photon() = default;
@@ -115,9 +119,88 @@ public:
 
 	void track(RayOfLight &ray)
 	{
-		num_completed++;
+		while (ray.size() < max_light_distribution)
+		{
+			Photon next = next_photon(ray.back());
+			CellType type = get_cell_type(next.x, next.y);
+
+			switch (type)
+			{
+			case CellType::EmptySpace:
+				ray.push_back(next);
+				break;
+			case CellType::WallCorner:
+			case CellType::Column:
+				num_completed++;
+				break;
+			case CellType::Wall: // FIXME
+			case CellType::Prism: // FIXME
+			default:
+				break;
+			}
+		}
 	}
 
+	Photon next_photon(const Photon &p)
+	{
+		Photon r;
+		switch (p.heading)
+		{
+		case Heading::NorthEast:
+			assert(p.y > 0);
+			r.x = p.x + 1;
+			r.y = p.y - 1;
+			break;
+		case Heading::NorthWest:
+			assert(p.x > 0);
+			assert(p.y > 0);
+			r.x = p.x - 1;
+			r.y = p.y - 1;
+			break;
+		case Heading::SouthWest:
+			assert(p.x > 0);
+			r.x = p.x - 1;
+			r.y = p.y + 1;
+			break;
+		case Heading::SouthEast:
+			r.x = p.x + 1;
+			r.y = p.y + 1;
+			break;
+		default:
+			break;
+		}
+
+		assert(r.x <= right_wall);
+		assert(r.y <= bottom_wall);
+		r.heading = p.heading;
+		return r;
+	}
+
+	CellType get_cell_type(size_t x, size_t y)
+	{
+		char c = room.at(x, y);
+
+		switch (c)
+		{
+		case ' ':
+			return CellType::EmptySpace;
+		case 'o':
+			return CellType::Column;
+		case '*':
+			return CellType::Prism;
+		case '#':
+			if ((x == left_wall && y == top_wall) ||
+				(x == right_wall && y == top_wall) ||
+				(x == left_wall && y == bottom_wall) ||
+				(x == right_wall && y == bottom_wall))
+				return CellType::WallCorner;
+			else
+				return CellType::Wall;
+		default:
+			assert(false);
+			return CellType::WallCorner;
+		}
+	}
 
 private:
 	Photon get_start_photon()
@@ -131,7 +214,6 @@ private:
 					char c = room.at(x, y);
 					switch (c)
 					{
-						// TODO: Check this logic
 						case '\\':
 							if (x == left_wall || y == top_wall)
 								return{ x, y, Heading::SouthEast };
@@ -139,7 +221,7 @@ private:
 								return{ x, y, Heading::NorthWest };
 							break;
 						case '/':
-							if (x == left_wall || y == top_wall)
+							if (x == right_wall || y == top_wall)
 								return{ x, y, Heading::SouthWest };
 							else
 								return{ x, y, Heading::NorthEast };
