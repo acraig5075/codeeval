@@ -24,6 +24,11 @@ constexpr size_t bottom_wall = room_height - 1;
 enum class Heading { NorthEast, NorthWest, SouthWest, SouthEast, None };
 enum class CellType { EmptySpace, Column, Prism, Wall, WallCorner };
 
+struct Photon;
+
+using RayOfLight = std::vector<Photon>;
+
+
 struct Room
 {
 	std::array<std::array<char, room_width>, room_height> cells;
@@ -82,6 +87,7 @@ std::ostream &operator<< (std::ostream &out, const Room &room)
 struct Photon
 {
 	Photon() = default;
+
 	Photon(size_t x, size_t y, Heading heading)
 		: x(x), y(y), heading(heading)
 	{}
@@ -90,8 +96,6 @@ struct Photon
 	size_t y = room_height;
 	Heading heading = Heading::None;
 };
-
-using RayOfLight = std::vector<Photon>;
 
 class Simulation
 {
@@ -114,7 +118,43 @@ public:
 			{
 				track(rays.at(num_completed));
 			}
+
+			plot_rays();
 		}
+	}
+
+private:
+	Photon get_start_photon()
+	{
+		for (size_t y = 0; y < room_height; ++y)
+		{
+			for (size_t x = 0; x < room_width; ++x)
+			{
+				if (x == left_wall || y == top_wall || x == right_wall || y == bottom_wall)
+				{
+					char c = room.at(x, y);
+					switch (c)
+					{
+					case '\\':
+						if (x == left_wall || y == top_wall)
+							return{ x, y, Heading::SouthEast };
+						else
+							return{ x, y, Heading::NorthWest };
+						break;
+					case '/':
+						if (x == right_wall || y == top_wall)
+							return{ x, y, Heading::SouthWest };
+						else
+							return{ x, y, Heading::NorthEast };
+						break;
+					default:
+						break;
+					}
+				}
+			}
+		}
+
+		return{};
 	}
 
 	void track(RayOfLight &ray)
@@ -132,12 +172,35 @@ public:
 			case CellType::WallCorner:
 			case CellType::Column:
 				num_completed++;
+				return; // ray finished
+			case CellType::Wall:
+				next = reflection(next);
+				ray.push_back(next);
 				break;
-			case CellType::Wall: // FIXME
-			case CellType::Prism: // FIXME
+			case CellType::Prism:
+			{
+				std::array<Photon, 3> split = split_photon(next);
+				RayOfLight right(ray);
+				RayOfLight left(ray);
+				
+				ray.push_back(split[0]);
+				left.push_back(split[1]);
+				right.push_back(split[2]);
+
+				rays.push_back(left);
+				rays.push_back(right);
+				return; // push_back() on the vector-of-vectors has invalidated the reference.
+			}
 			default:
+				assert(false);
 				break;
 			}
+		}
+
+		if (ray.size() == max_light_distribution)
+		{
+			num_completed++;
+			return; // ray finished
 		}
 	}
 
@@ -202,38 +265,96 @@ public:
 		}
 	}
 
-private:
-	Photon get_start_photon()
+	Photon reflection(const Photon &p)
 	{
-		for (size_t y = 0; y < room_height; ++y)
+		Photon r(p.x, p.y, Heading::None);
+
+		if (p.x == left_wall)
 		{
-			for (size_t x = 0; x < room_width; ++x)
+			r.x++;
+			if (p.heading == Heading::NorthWest)
+				r.heading = Heading::NorthEast;
+			else if (p.heading == Heading::SouthWest)
+				r.heading = Heading::SouthEast;
+		}
+		else if (p.x == right_wall)
+		{
+			r.x--;
+			if (p.heading == Heading::NorthEast)
+				r.heading = Heading::NorthWest;
+			else if (p.heading == Heading::SouthEast)
+				r.heading = Heading::SouthWest;
+		}
+		else if (p.y == top_wall)
+		{
+			r.y++;
+			if (p.heading == Heading::NorthEast)
+				r.heading = Heading::SouthEast;
+			else if (p.heading == Heading::NorthWest)
+				r.heading = Heading::SouthWest;
+		}
+		else if (p.y == bottom_wall)
+		{
+			r.y--;
+			if (p.heading == Heading::SouthEast)
+				r.heading = Heading::NorthEast;
+			else if (p.heading == Heading::SouthWest)
+				r.heading = Heading::NorthWest;
+		}
+
+		assert(r.heading != Heading::None);
+		return r;
+	}
+
+	std::array<Photon, 3> split_photon(const Photon &p)
+	{
+		Photon ne{ p.x + 1, p.y - 1, Heading::NorthEast };
+		Photon se{ p.x + 1, p.y + 1, Heading::SouthEast };
+		Photon sw{ p.x - 1, p.y + 1, Heading::SouthWest };
+		Photon nw{ p.x - 1, p.y - 1, Heading::NorthWest };
+
+		switch (p.heading)
+		{
+		case Heading::NorthEast:
+			return{ ne, nw, se };
+		case Heading::NorthWest:
+			return{ nw, sw, ne };
+		case Heading::SouthWest:
+			return{ sw, se, nw };
+		case Heading::SouthEast:
+			return{ se, ne, sw };
+		default:
+			assert(false);
+			return{};
+		}
+	}
+
+	void plot_rays()
+	{
+		for (const auto & ray : rays)
+		{
+			for (const auto & p : ray)
 			{
-				if (x == left_wall || y == top_wall || x == right_wall || y == bottom_wall)
+				char &c = room.at(p.x, p.y);
+
+				assert(c != '#' && c != 'o' && c != '*');
+
+				if (p.heading == Heading::NorthEast || p.heading == Heading::SouthWest)
 				{
-					char c = room.at(x, y);
-					switch (c)
-					{
-						case '\\':
-							if (x == left_wall || y == top_wall)
-								return{ x, y, Heading::SouthEast };
-							else
-								return{ x, y, Heading::NorthWest };
-							break;
-						case '/':
-							if (x == right_wall || y == top_wall)
-								return{ x, y, Heading::SouthWest };
-							else
-								return{ x, y, Heading::NorthEast };
-							break;
-						default:
-							break;
-					}
+					if (c == '\\')
+						c = 'X';
+					else
+						c = '/';
+				}
+				else if (p.heading == Heading::NorthWest || p.heading == Heading::SouthEast)
+				{
+					if (c == '/')
+						c = 'X';
+					else
+						c = '\\';
 				}
 			}
 		}
-
-		return{};
 	}
 
 private:
