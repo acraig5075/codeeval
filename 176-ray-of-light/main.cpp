@@ -22,7 +22,7 @@ constexpr size_t right_wall = room_width - 1;
 constexpr size_t bottom_wall = room_height - 1;
 
 enum class Heading { NorthEast, NorthWest, SouthWest, SouthEast, None };
-enum class CellType { EmptySpace, Column, Prism, Wall, WallCorner };
+enum class CellType { EmptySpace, Column, Prism, SpentPrism, Wall, WallCorner };
 
 struct Photon;
 
@@ -44,13 +44,25 @@ struct Room
 		assert(x < room_width && y < room_height);
 		return cells.at(y).at(x);
 	}
+
+	void reinstate_prisms()
+	{
+		for (int x = 0; x < room_width; ++x)
+		{
+			for (int y = 0; y < room_height; ++y)
+			{
+				char &c = at(x, y);
+				if (c == 's')
+					c = '*';
+			}
+		}
+	}
 };
 
 std::istream &operator >>(std::istream &in, Room &room)
 {
 	std::string line;
 	std::getline(in, line);
-	assert(line.length() == room_width * room_height);
 
 	if (line.length() <= room_width * room_height)
 	{
@@ -62,6 +74,10 @@ std::istream &operator >>(std::istream &in, Room &room)
 			size_t x = c % room_width;
 			room.at(x, y) = *buffer;
 		}
+	}
+	else
+	{
+		in.setstate(std::ios_base::failbit);
 	}
 
 	return in;
@@ -97,6 +113,11 @@ struct Photon
 	Heading heading = Heading::None;
 };
 
+bool operator== (const Photon&lhs, const Photon &rhs)
+{
+	return lhs.x == rhs.x && lhs.y == rhs.y && lhs.heading == rhs.heading;
+}
+
 class Simulation
 {
 public:
@@ -110,14 +131,16 @@ public:
 
 		if (start.x < room_width && start.y < room_height && start.heading != Heading::None)
 		{
-			RayOfLight current;
-			current.push_back(start);
-			rays.push_back(current);
+			RayOfLight ray;
+			ray.push_back(start);
+			rays.push_back(ray);
 
 			while (num_completed < rays.size())
 			{
 				track(rays.at(num_completed));
 			}
+
+			room.reinstate_prisms();
 
 			plot_rays();
 		}
@@ -159,42 +182,16 @@ private:
 
 	void track(RayOfLight &ray)
 	{
+		Photon next(ray.back());
+		ray.pop_back();
+
 		while (ray.size() < max_light_distribution)
 		{
-			Photon next = next_photon(ray.back());
-			CellType type = get_cell_type(next.x, next.y);
+			if (process_photon(ray, next))
+				break;
 
-			switch (type)
-			{
-			case CellType::EmptySpace:
-				ray.push_back(next);
-				break;
-			case CellType::WallCorner:
-			case CellType::Column:
-				num_completed++;
-				return; // ray finished
-			case CellType::Wall:
-				next = reflection(next);
-				ray.push_back(next);
-				break;
-			case CellType::Prism:
-			{
-				std::array<Photon, 3> split = split_photon(next);
-				RayOfLight right(ray);
-				RayOfLight left(ray);
-				
-				ray.push_back(split[0]);
-				left.push_back(split[1]);
-				right.push_back(split[2]);
+			next = next_photon(next);
 
-				rays.push_back(left);
-				rays.push_back(right);
-				return; // push_back() on the vector-of-vectors has invalidated the reference.
-			}
-			default:
-				assert(false);
-				break;
-			}
 		}
 
 		if (ray.size() == max_light_distribution)
@@ -204,6 +201,53 @@ private:
 		}
 	}
 
+	bool process_photon(RayOfLight &ray, const Photon &p)
+	{
+		CellType type = get_cell_type(p);
+
+		switch (type)
+		{
+		case CellType::EmptySpace:
+			if (std::find(begin(ray), end(ray), p) == end(ray))
+			{
+				ray.push_back(p);
+				return false;
+			}
+			else
+			{
+				num_completed++;
+				return true; // ray finished
+			}
+		case CellType::WallCorner:
+		case CellType::Column:
+		case CellType::SpentPrism:
+			num_completed++;
+			return true; // ray finished
+		case CellType::Prism:
+		{
+			std::array<Photon, 3> split = split_photon(p);
+
+			RayOfLight left(ray);
+			RayOfLight right(ray);
+
+			ray.push_back(split[0]);
+			left.push_back(split[1]);
+			right.push_back(split[2]);
+
+			rays.push_back(left);
+			rays.push_back(right);
+
+			room.at(p.x, p.y) = 's'; // prism can become a spent prism now.
+
+			return true;
+		}
+		case CellType::Wall:
+		default:
+			assert(false);
+			return false;
+		}
+	}
+	
 	Photon next_photon(const Photon &p)
 	{
 		Photon r;
@@ -236,21 +280,31 @@ private:
 		assert(r.x <= right_wall);
 		assert(r.y <= bottom_wall);
 		r.heading = p.heading;
+
+		if (get_cell_type(r) == CellType::Wall)
+			r = reflection(r);
+
 		return r;
 	}
 
-	CellType get_cell_type(size_t x, size_t y)
+	CellType get_cell_type(const Photon &p)
 	{
+		size_t x = p.x;
+		size_t y = p.y;
 		char c = room.at(x, y);
 
 		switch (c)
 		{
 		case ' ':
+		case '/':
+		case '\\':
 			return CellType::EmptySpace;
 		case 'o':
 			return CellType::Column;
 		case '*':
 			return CellType::Prism;
+		case 's':
+			return CellType::SpentPrism;
 		case '#':
 			if ((x == left_wall && y == top_wall) ||
 				(x == right_wall && y == top_wall) ||
@@ -377,10 +431,13 @@ int main(int argc, char* argv[])
 				Room room;
 				fin >> room;
 
-				Simulation sim(room);
-				sim.run();
+				if (fin)
+				{
+					Simulation sim(room);
+					sim.run();
 
-				std::cout << room;
+					std::cout << room;
+				}
 			}
 		}
 	}
