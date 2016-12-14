@@ -1,7 +1,7 @@
 // 176-ray-of-light.cpp : Defines the entry point for the console application.
 //
 
-#include "stdafx.h"
+#include <algorithm>
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -10,7 +10,7 @@
 #include <vector>
 
 // Define this for debug formatted output. Undefine for codeeval submission
-#define delimited_output
+//#define delimited_output
 
 constexpr size_t room_width = 10;
 constexpr size_t room_height = 10;
@@ -22,7 +22,7 @@ constexpr size_t right_wall = room_width - 1;
 constexpr size_t bottom_wall = room_height - 1;
 
 enum class Heading { NorthEast, NorthWest, SouthWest, SouthEast, None };
-enum class CellType { EmptySpace, Column, Prism, SpentPrism, Wall, WallCorner };
+enum class CellType { EmptySpace, Column, Prism, SpentPrism, Wall, WallCorner, WallOpening };
 
 struct Photon;
 
@@ -207,6 +207,14 @@ private:
 
 		switch (type)
 		{
+		case CellType::WallOpening:
+			if (!ray.empty())
+			{
+				ray.push_back(p);
+				num_completed++;
+				return true;
+			}
+			// drop through intentional
 		case CellType::EmptySpace:
 			if (std::find(begin(ray), end(ray), p) == end(ray))
 			{
@@ -296,8 +304,6 @@ private:
 		switch (c)
 		{
 		case ' ':
-		case '/':
-		case '\\':
 			return CellType::EmptySpace;
 		case 'o':
 			return CellType::Column;
@@ -313,6 +319,15 @@ private:
 				return CellType::WallCorner;
 			else
 				return CellType::Wall;
+		case '/':
+		case '\\':
+			if (p.y == top_wall ||
+				p.x == left_wall ||
+				p.x == right_wall ||
+				p.y == bottom_wall)
+				return CellType::WallOpening;
+			else
+				return CellType::EmptySpace;
 		default:
 			assert(false);
 			return CellType::WallCorner;
@@ -391,9 +406,13 @@ private:
 			{
 				char &c = room.at(p.x, p.y);
 
-				assert(c != '#' && c != 'o' && c != '*');
+				assert(c == ' ' || c == '/' || c == '\\' || c == 'X');
 
-				if (p.heading == Heading::NorthEast || p.heading == Heading::SouthWest)
+				if (c == 'X')
+				{
+					continue;
+				}
+				else if (p.heading == Heading::NorthEast || p.heading == Heading::SouthWest)
 				{
 					if (c == '\\')
 						c = 'X';
