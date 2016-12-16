@@ -5,12 +5,16 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <array>
 #include <cassert>
 #include <vector>
 
 // Define this for debug formatted output. Undefine for codeeval submission
-//#define delimited_output
+#define delimited_output
+
+// Define this to compare output with a second command-line filename. Undefine for codeeval submission
+#define do_file_comparison
 
 constexpr size_t room_width = 10;
 constexpr size_t room_height = 10;
@@ -443,6 +447,18 @@ int main(int argc, char* argv[])
 		std::string filename(argv[1]);
 		std::ifstream fin(filename.c_str());
 
+#if defined do_file_comparison
+		std::ifstream fin2;
+		bool compare = false;
+		int test_no = 0;
+		if (argc > 2)
+		{
+			std::string filename2(argv[2]);
+			fin2.open(filename2.c_str());
+			compare = fin2.is_open();
+		}
+#endif
+
 		if (fin.is_open())
 		{
 			while (fin.good())
@@ -456,6 +472,29 @@ int main(int argc, char* argv[])
 					sim.run();
 
 					std::cout << room;
+
+#if defined do_file_comparison
+					if (compare && fin2.good())
+					{
+						Room room2;
+						if (fin2 >> room2)
+						{
+							std::stringstream ss1, ss2;
+							ss1 << room;
+							ss2 << room2;
+							std::string s1 = ss1.str();
+							std::string s2 = ss2.str();
+							if (s1 != s2)
+							{
+								std::cerr << "Mismatch on test #"
+									<< test_no + 1 << "\n"
+									<< "Actual:\n" << s1 << "\n"
+									<< "Expected:\n" << s2 << "\n";
+							}
+						}
+						test_no++;
+					}
+#endif
 				}
 			}
 		}
