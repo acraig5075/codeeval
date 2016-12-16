@@ -11,10 +11,10 @@
 #include <vector>
 
 // Define this for debug formatted output. Undefine for codeeval submission
-#define delimited_output
+//#define delimited_output
 
 // Define this to compare output with a second command-line filename. Undefine for codeeval submission
-#define do_file_comparison
+//#define do_file_comparison
 
 constexpr size_t room_width = 10;
 constexpr size_t room_height = 10;
@@ -26,7 +26,7 @@ constexpr size_t right_wall = room_width - 1;
 constexpr size_t bottom_wall = room_height - 1;
 
 enum class Heading { NorthEast, NorthWest, SouthWest, SouthEast, None };
-enum class CellType { EmptySpace, Column, Prism, SpentPrism, Wall, WallCorner, WallOpening };
+enum class CellType { EmptySpace, Column, Prism, Wall, WallCorner, WallOpening };
 
 struct Photon;
 
@@ -47,19 +47,6 @@ struct Room
 	{
 		assert(x < room_width && y < room_height);
 		return cells.at(y).at(x);
-	}
-
-	void reinstate_prisms()
-	{
-		for (int x = 0; x < room_width; ++x)
-		{
-			for (int y = 0; y < room_height; ++y)
-			{
-				char &c = at(x, y);
-				if (c == 's')
-					c = '*';
-			}
-		}
 	}
 };
 
@@ -144,8 +131,6 @@ public:
 				track(rays.at(num_completed));
 			}
 
-			room.reinstate_prisms();
-
 			plot_rays();
 		}
 	}
@@ -195,13 +180,15 @@ private:
 				break;
 
 			next = next_photon(next);
-
 		}
 
 		if (ray.size() == max_light_distribution)
 		{
-			num_completed++;
-			return; // ray finished
+			Photon p = ray.at(max_light_distribution - 1);
+			if (room.at(p.x, p.y) != '*')
+			{
+				num_completed++; // ray finished
+			}
 		}
 	}
 
@@ -232,7 +219,6 @@ private:
 			}
 		case CellType::WallCorner:
 		case CellType::Column:
-		case CellType::SpentPrism:
 			num_completed++;
 			return true; // ray finished
 		case CellType::Prism:
@@ -248,8 +234,6 @@ private:
 
 			rays.push_back(left);
 			rays.push_back(right);
-
-			room.at(p.x, p.y) = 's'; // prism can become a spent prism now.
 
 			return true;
 		}
@@ -313,8 +297,6 @@ private:
 			return CellType::Column;
 		case '*':
 			return CellType::Prism;
-		case 's':
-			return CellType::SpentPrism;
 		case '#':
 			if ((x == left_wall && y == top_wall) ||
 				(x == right_wall && y == top_wall) ||
@@ -410,6 +392,9 @@ private:
 			{
 				char &c = room.at(p.x, p.y);
 
+				if (c == '*')
+					continue;
+
 				assert(c == ' ' || c == '/' || c == '\\' || c == 'X');
 
 				if (c == 'X')
@@ -450,7 +435,6 @@ int main(int argc, char* argv[])
 #if defined do_file_comparison
 		std::ifstream fin2;
 		bool compare = false;
-		int test_no = 0;
 		if (argc > 2)
 		{
 			std::string filename2(argv[2]);
@@ -461,6 +445,8 @@ int main(int argc, char* argv[])
 
 		if (fin.is_open())
 		{
+			int test_no = 0;
+
 			while (fin.good())
 			{
 				Room room;
@@ -468,6 +454,8 @@ int main(int argc, char* argv[])
 
 				if (fin)
 				{
+					test_no++;
+
 					Simulation sim(room);
 					sim.run();
 
@@ -487,12 +475,11 @@ int main(int argc, char* argv[])
 							if (s1 != s2)
 							{
 								std::cerr << "Mismatch on test #"
-									<< test_no + 1 << "\n"
+									<< test_no << "\n"
 									<< "Actual:\n" << s1 << "\n"
 									<< "Expected:\n" << s2 << "\n";
 							}
 						}
-						test_no++;
 					}
 #endif
 				}
