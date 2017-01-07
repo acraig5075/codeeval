@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 					assert(tokens.size() == 2);
 
 					int answer = subsequences(tokens.at(0), tokens.at(1));
-					std::cout << answer;
+					std::cout << answer << "\n";
 					}
 				}
 			}
@@ -103,24 +103,20 @@ int calc_rank(size_t index, const IndexRankVector &v)
 		}
 	else
 		{
-		int rank = 0;
-		for (auto it = std::begin(v); it != std::end(v); ++it)
+		return std::accumulate(std::begin(v), std::end(v), 0, [index](int val, const IndexRank &item)
 			{
-			if (it->first > index)
-				rank += it->second;
-			}
-
-		return rank;
+			if (item.first > index)
+				return val + item.second;
+			else
+				return val;
+			});
 		}
 }
 
 int calc_score(const IndexRankVector &v)
 {
-	int score = 0;
-	for (auto it = std::begin(v); it != std::end(v); ++it)
+	return std::accumulate(std::begin(v), std::end(v), 0, [](int val, const IndexRank &item)
 		{
-		score += it->second;
-		}
-
-	return score;
+		return val + item.second;
+		});
 }
