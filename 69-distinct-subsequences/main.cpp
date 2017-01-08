@@ -37,7 +37,11 @@ int main(int argc, char *argv[])
 					std::vector<std::string> tokens = split(line, ',');
 					assert(tokens.size() == 2);
 
-					int answer = subsequences(tokens.at(0), tokens.at(1));
+					// gcc < 5.0 doesn't support std::rbegin and std::rend. So rather work with a reversed copy.
+					std::string revcopy{ tokens.at(1) };
+					std::reverse(std::begin(revcopy), std::end(revcopy));
+
+					int answer = subsequences(tokens.at(0), revcopy);
 					std::cout << answer << "\n";
 					}
 				}
@@ -70,11 +74,11 @@ std::vector<std::string> split(const std::string &value, char delimiter)
 	return ret;
 }
 
-int subsequences(const std::string &sequence, const std::string &subsequence)
+int subsequences(const std::string &sequence, const std::string &rev_subsequence)
 {
 	IndexRankVector current, previous;
 
-	for (auto it = std::rbegin(subsequence); it != std::rend(subsequence); ++it)
+	for (auto it = std::begin(rev_subsequence); it != std::end(rev_subsequence); ++it)
 		{
 		size_t off = 0;
 
