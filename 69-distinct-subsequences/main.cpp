@@ -83,6 +83,10 @@ int subsequences(const std::string &sequence, const std::string &rev_subsequence
 		size_t off = 0;
 
 		size_t index = sequence.find(*it, off);
+
+		if (off == 0 && index == sequence.npos)
+			return 0; // no point in continuing.
+
 		while (index != sequence.npos)
 			{
 			int rank = calc_rank(index, previous);
