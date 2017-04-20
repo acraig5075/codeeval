@@ -18,6 +18,7 @@ These challenges offer a nice opportunity to solve problems not of the sort I us
 | std::copy_n() | [108](108-terminal/main.cpp), 
 | std::minmax_element() | [213](213-lakes/main.cpp), 
 | std::numeric_limits() | [51](51-closest-pair/main.cpp)
+| std::accumulate() | [69](69-distinct-subsequences/main.cpp)
 
 ### Code snippets
 
@@ -28,8 +29,9 @@ These challenges offer a nice opportunity to solve problems not of the sort I us
 | raw string literals  | [108](108-terminal/main.cpp), 
 | using lambdas as algorithm predicates  | [48](48-discounts/main.cpp),
 | Custom comparison operator  | [86](86-poker/main.cpp), 
-| Custom istream and ostream operators  | [86](86-poker/main.cpp), 
+| Custom istream and ostream operators  | [86](86-poker/main.cpp), [176](176-ray-of-light/main.cpp),
 | generic comparison of two ranges  | [86](86-poker/main.cpp), 
 | good separation of concerns  | [108](108-terminal/main.cpp), 
 | erase-remove idiom  | [213](213-lakes/main.cpp), 
 | is string numeric  | [51](51-closest-pair/main.cpp)
+| test file comparison  | [176](176-ray-of-light/main.cpp),

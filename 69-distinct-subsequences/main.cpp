@@ -37,11 +37,7 @@ int main(int argc, char *argv[])
 					std::vector<std::string> tokens = split(line, ',');
 					assert(tokens.size() == 2);
 
-					// gcc < 5.0 doesn't support std::rbegin and std::rend. So rather work with a reversed copy.
-					std::string revcopy{ tokens.at(1) };
-					std::reverse(std::begin(revcopy), std::end(revcopy));
-
-					int answer = subsequences(tokens.at(0), revcopy);
+					int answer = subsequences(tokens.at(0), tokens.at(1));
 					std::cout << answer << "\n";
 					}
 				}
@@ -51,6 +47,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+// String tokeniser
 std::vector<std::string> split(const std::string &value, char delimiter)
 {
 	std::vector<std::string> ret;
@@ -74,15 +71,25 @@ std::vector<std::string> split(const std::string &value, char delimiter)
 	return ret;
 }
 
-int subsequences(const std::string &sequence, const std::string &rev_subsequence)
+// Function to return the score of the test
+int subsequences(const std::string &sequence, const std::string &subsequence)
 {
 	IndexRankVector current, previous;
+
+	// gcc < 5.0 doesn't support std::rbegin and std::rend. So rather work with a reversed copy.
+	std::string rev_subsequence{ subsequence };
+	std::reverse(std::begin(rev_subsequence), std::end(rev_subsequence));
 
 	for (auto it = std::begin(rev_subsequence); it != std::end(rev_subsequence); ++it)
 		{
 		size_t off = 0;
 
 		size_t index = sequence.find(*it, off);
+
+		// early exit if no subsequence exists at all
+		if (off == 0 && index == sequence.npos)
+			return 0;
+
 		while (index != sequence.npos)
 			{
 			int rank = calc_rank(index, previous);
@@ -99,6 +106,7 @@ int subsequences(const std::string &sequence, const std::string &rev_subsequence
 	return calc_score(previous);
 }
 
+// The rank is the no. of items in the vector having an index greater than `index`
 int calc_rank(size_t index, const IndexRankVector &v)
 {
 	if (v.empty())
@@ -117,6 +125,7 @@ int calc_rank(size_t index, const IndexRankVector &v)
 		}
 }
 
+// The score is the sum of all ranks of a vector
 int calc_score(const IndexRankVector &v)
 {
 	return std::accumulate(std::begin(v), std::end(v), 0, [](int val, const IndexRank &item)
