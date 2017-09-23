@@ -1,18 +1,18 @@
-// 175-the-cubes.cpp : Defines the entry point for the console application.
-//
-
 #include <iostream>
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <fstream>
 #include <cassert>
+#include <queue>
+#include <iterator>
 
 using std::string;
 using std::vector;
 using std::cout;
 using std::ifstream;
 using std::pair;
+using std::queue;
 
 using edges = vector<pair<size_t, size_t>>;
 
@@ -20,7 +20,66 @@ auto split(const string &value, char delimiter) -> vector<string>;
 auto increment(size_t &value) -> void;
 auto decrement(size_t &value) -> void;
 
+#define infinity -1
 
+
+// Adjacency list graph for shortest path
+class graph
+{
+public:
+	graph(size_t v)
+		: n(v)
+	{
+		adjacency_list.resize(v, vector<int>());
+		dist.resize(v, infinity);
+	}
+
+	void read(const edges &edges)
+	{
+		for (const auto e : edges)
+		{
+			adjacency_list[e.first].push_back(e.second);
+		}
+	}
+
+	void bfs(int s)
+	{
+		dist.resize(n, infinity);
+		dist[s] = 1;
+
+		queue<int> q;
+		q.push(s);
+
+		while (!q.empty())
+		{
+			int u = q.front();
+			q.pop();
+
+			for (auto v : adjacency_list[u])
+			{
+				if (dist[v] == infinity)
+				{
+					q.push(v);
+					dist[v] = dist[u] + 1;
+				}
+			}
+		}
+	}
+
+	int get_distance(int v)
+	{
+		return dist[v];
+	}
+
+
+private:
+	size_t n = 0;
+	vector<vector<int>> adjacency_list;
+	vector<int> dist;
+};
+
+
+// Encapsulate a single level floor plan
 class floor_plan
 {
 public:
@@ -48,6 +107,19 @@ public:
 				c = 0;
 				}
 			}
+	}
+
+	void print(std::ostream &out) const
+	{
+		for (const auto &r : grid)
+		{
+			for (const auto &c : r)
+			{
+				out << c;
+			}
+			out << "\n";
+		}
+		out << "\n\n";
 	}
 
 	size_t id(size_t level, size_t r, size_t c) const
@@ -84,20 +156,25 @@ public:
 		if (colOp)
 			(*colOp)(c);
 
+		assert(r < dim && c < dim);
+
 		if (grid[r][c] == '*')
 			return;
+
+		// a valid step is into a space, into the start of a hole, or completely over a hole
+		// an invalid step is jumping over a hole into a hole
 
 		steps.push_back({ from, id(level, r, c) });
 
 		// handle jump over hole
-		if (grid[r][c] == 'o')
+		while (grid[r][c] == 'o')
 			{
 			if (rowOp)
 				(*rowOp)(r);
 			if (colOp)
 				(*colOp)(c);
 
-			if (grid[r][c] != '*')
+			if (grid[r][c] != ' ')
 				steps.push_back({ from, id(level, r, c) });
 			}
 	}
@@ -124,9 +201,7 @@ public:
 
 	void hole(size_t level, size_t r, size_t c)
 	{
-		assert(level > 0);
-
-		if (grid[r][c] == 'o')
+		if (level > 0 && grid[r][c] == 'o')
 			{
 			size_t from = id(level, r, c);
 			size_t to = id(level - 1, r, c);
@@ -136,6 +211,30 @@ public:
 			}
 	}
 
+	pair<size_t, size_t> entrance(size_t level)
+	{
+		const size_t side = dim - 1;
+		for (size_t r = 0; r < dim; ++r)
+		{
+			for (size_t c = 0; c < dim; ++c)
+			{
+				if ((c == 0 || r == 0 || c == side || r == side) && grid[r][c] == ' ')
+				{
+					if (r == 0)
+						return{ id(level, r, c), id(level, r + 1, c) };
+					else if (r == side)
+						return{ id(level, r, c), id(level, r - 1, c) };
+					else if (c == 0)
+						return{ id(level, r, c), id(level, r, c + 1) };
+					else if (c == side)
+						return{ id(level, r, c), id(level, r, c - 1) };
+				}
+			}
+		}
+
+		assert(false);
+		return{ 0,0 };
+	}
 
 private:
 	size_t dim = 0;
@@ -143,6 +242,8 @@ private:
 	edges steps;
 };
 
+
+// Encapsulate a labyrinth of multiple levels
 class labyrinth
 {
 public:
@@ -156,9 +257,15 @@ public:
 	{
 		for (size_t i = 0; i < dim; ++i)
 			{
-			size_t start = i * dim;
+			size_t start = i * dim * dim;
 			levels[i].make(s.substr(start, dim * dim));
 			}
+	}
+
+	void print(std::ostream &out)
+	{
+		for (const auto &l : levels)
+			l.print(out);
 	}
 
 	edges all_steps()
@@ -171,14 +278,18 @@ public:
 			all.insert(end(all), begin(steps), end(steps));
 			}
 
-		// todo add entrance and exit step
+		auto edge1 = levels[0].entrance(0);
+		auto edge2 = levels[dim - 1].entrance(dim - 1);
+		all.push_back(edge1);
+		all.push_back(edge2);
 
 		return all;
 	}
 
 	size_t level_opening(size_t level)
 	{
-		return 0;
+		auto opening = levels[level].entrance(level);
+		return opening.first;
 	}
 
 private:
@@ -186,6 +297,8 @@ private:
 	vector<floor_plan> levels;
 };
 
+
+// The main program
 int main(int argc, char *argv[])
 {
 	if (argc > 1)
@@ -202,24 +315,34 @@ int main(int argc, char *argv[])
 
 				if (!line.empty())
 					{
+					// tokenise the input
 					auto tokens = split(line, ';');
-					auto str1 = tokens[0];
-					auto str2 = tokens[1];
+					string count = tokens[0];
+					string data = tokens[1];
 
-					size_t dim = atoi(str1.c_str());
-					assert(str2.length() >= dim * dim * dim);
+					size_t dim = atoi(count.c_str());
+					assert(data.length() >= dim * dim * dim);
 
+					// construct the levels
 					labyrinth labyrinth(dim);
-					labyrinth.make(str2);
+					labyrinth.make(data);
 
+					// determine all possible steps
 					edges movements = labyrinth.all_steps();
 					size_t start = labyrinth.level_opening(0);
 					size_t end = labyrinth.level_opening(dim - 1);
 
-					//graph g(dim * dim * dim);
-					//g.read(movements);
-					//g.bfs(start);
-					//g.get_distance(end);
+					// graph the steps and determine short path
+					graph g(dim * dim * dim);
+					g.read(movements);
+					g.bfs(start);
+					int shortest = g.get_distance(end);
+
+					// output
+					if (shortest == infinity)
+						cout << 0 << "\n";
+					else
+						cout << shortest << "\n";
 					}
 				}
 			}
@@ -259,5 +382,6 @@ auto increment(size_t &value) -> void
 
 auto decrement(size_t &value) -> void
 {
+	assert(value != 0);
 	--value;
 }
